@@ -158,13 +158,15 @@ private class RecordingSession(private val context: Context, private val root: D
     private var lastLoggedDropped = 0L
     private var nextBudgetCheckNs = 0L
     private val hardware = HardwareSamples()
+    private val metadata = JSONObject()
+    private var gameIdentity = ""
     var framesRecorded = 0L; private set
     var droppedEvents = 0L; private set
 
     init {
       try {
         // UTC and monotonic time are recorded together, not inferred from filenames.
-        val metadata = JSONObject().put("schema_version", 1).put("recorder", TelemetryFiles.RECORDER)
+        metadata.put("schema_version", 1).put("recorder", TelemetryFiles.RECORDER)
             .put("started_utc", Instant.now().toString()).put("monotonic_ns", System.nanoTime())
             .put("application_id", context.packageName).put("version", BuildConfig.VERSION_NAME)
             .put("source_revision", BuildConfig.TELEMETRY_REVISION).put("baseline", "b8eea42f52755f0841afc04a23b06125e5274bab")
@@ -217,6 +219,16 @@ private class RecordingSession(private val context: Context, private val root: D
             check(root.exists() && root.canWrite()) { "Recording folder access was lost" }
             TelemetryFiles.makeRoom(context, root, directory.uri, 16L * 1024 * 1024)
             nextBudgetCheckNs = System.nanoTime() + 5_000_000_000L
+        }
+        // Boot-time recording may start before the core knows the game's identity.
+        val gameId = ARMSX3.instance.getTitleId()
+        val title = ARMSX3.instance.getTitle().orEmpty()
+        val identity = "$gameId|$title"
+        if (identity != gameIdentity && (gameId.isNotBlank() || title.isNotBlank())) {
+            gameIdentity = identity
+            metadata.put("game_id", gameId).put("game_title", title)
+            TelemetryFiles.writeJson(context, directory, "metadata.json", metadata)
+            event("game_identity", JSONObject().put("game_id", gameId).put("game_title", title))
         }
         val snapshot = JSONObject(ARMSX3.instance.telemetrySnapshot())
         check(snapshot.optInt("version") == 1) { "Unsupported native telemetry schema" }
