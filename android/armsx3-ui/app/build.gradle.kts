@@ -299,7 +299,8 @@ dependencies {
     // without this the :discord process aborts with ClassNotFoundException even
     // though the .so links fine. proguard-rules.pro keeps them from being
     // renamed for the same reason.
-    implementation(files("libs/discord_partner_sdk.aar"))
+    val discordSdk = file("libs/discord_partner_sdk.aar")
+    if (discordSdk.isFile) implementation(files(discordSdk))
 
     implementation(libs.androidx.browser)
 
