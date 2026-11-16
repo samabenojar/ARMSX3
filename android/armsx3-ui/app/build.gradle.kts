@@ -211,6 +211,7 @@ android {
     // jvmTarget is taken from compileOptions above.
 
     buildFeatures {
+        resValues = true
         compose = true
         buildConfig = true
         viewBinding = true
