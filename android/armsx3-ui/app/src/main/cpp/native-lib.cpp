@@ -30,8 +30,8 @@
 
 struct CoreApi {
   void (*telemetryConfigure)(bool);
-  std::string (*telemetryDrain)();
-  std::string (*telemetrySnapshot)();
+  const char* (*telemetryDrain)();
+  const char* (*telemetrySnapshot)();
   bool (*overlayPadData)(int port, int digital1, int digital2, int leftStickX,
                          int leftStickY, int rightStickX, int rightStickY);
   bool (*overlayPadPressure)(int port, const int *values, int count);
@@ -2347,9 +2347,9 @@ Java_com_armsx3_core_ARMSX3_telemetryConfigure(JNIEnv *, jobject, jboolean enabl
 }
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_armsx3_core_ARMSX3_telemetryDrain(JNIEnv *env, jobject) {
-  return wrap(env, coreLib.telemetryDrain ? coreLib.telemetryDrain() : std::string("[]"));
+  return wrap(env, coreLib.telemetryDrain ? coreLib.telemetryDrain() : "[]");
 }
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_armsx3_core_ARMSX3_telemetrySnapshot(JNIEnv *env, jobject) {
-  return wrap(env, coreLib.telemetrySnapshot ? coreLib.telemetrySnapshot() : std::string("{}"));
+  return wrap(env, coreLib.telemetrySnapshot ? coreLib.telemetrySnapshot() : "{}");
 }

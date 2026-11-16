@@ -17,8 +17,37 @@ defaults:
     shell: bash
 
 jobs:
+  ui-check:
+    name: Android UI and unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          submodules: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install UI build tools
+        run: sdkmanager "ndk;29.0.14206865" "cmake;3.30.5" "platforms;android-37.0" "build-tools;37.0.0"
+      - name: Compile Kotlin and run unit tests
+        working-directory: android/armsx3-ui
+        run: ./gradlew :app:compilePlayReleaseKotlin :app:testPlayReleaseUnitTest -Parmsx3.minSdk=33 -Ptelemetry.revision=$GITHUB_SHA -Dorg.gradle.jvmargs="-Xmx4g -Dfile.encoding=UTF-8" --stacktrace
+      - name: Upload unit-test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: telemetry-unit-tests
+          path: android/armsx3-ui/app/build/test-results/
+          if-no-files-found: ignore
   android:
     name: Telemetry APK and native checks
+    needs: ui-check
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     env:
@@ -45,6 +74,8 @@ jobs:
         run: |
           c++ -std=c++20 -pthread -I. tests/telemetry/queue_test.cpp -o /tmp/telemetry-queue-test
           /tmp/telemetry-queue-test
+          c++ -std=c++20 -pthread -I. tests/telemetry/snapshot_test.cpp -o /tmp/telemetry-snapshot-test
+          python3 tests/telemetry/check_snapshot.py /tmp/telemetry-snapshot-test
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -94,9 +125,6 @@ jobs:
           password=os.environ['KEYSTORE_PASSWORD']
           (root/'keystore.properties').write_text(f'storeFile={key.resolve()}\nstorePassword={password}\nkeyAlias=telemetry\nkeyPassword={password}\n')
           PY
-      - name: Compile Kotlin and run unit tests
-        working-directory: android/armsx3-ui
-        run: ./gradlew :app:compilePlayReleaseKotlin :app:testPlayReleaseUnitTest -Parmsx3.minSdk=$ANDROID_API -Ptelemetry.revision=$GITHUB_SHA -Dorg.gradle.jvmargs="-Xmx4g -Dfile.encoding=UTF-8" --stacktrace
       - name: Configure native core
         run: bash android/stamp-git-version.sh && bash android/configure.sh -DARMSX3_ARM_MARCH=$ARM_MARCH
       - name: Build native core
@@ -135,10 +163,3 @@ jobs:
           name: armsx3-telemetry-symbols
           path: telemetry-native-symbols.tar.gz
           if-no-files-found: error
-      - name: Upload unit-test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: telemetry-unit-tests
-          path: android/armsx3-ui/app/build/test-results/
-          if-no-files-found: ignore

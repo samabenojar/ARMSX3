@@ -33,7 +33,7 @@ extern "C" void _armsx3_telemetryConfigure(bool enabled)
     telemetry_process_ns = 0;
 }
 
-extern "C" std::string _armsx3_telemetryDrain()
+extern "C" const char* _armsx3_telemetryDrain()
 {
     const auto events = performance_telemetry::drain();
     std::ostringstream out;
@@ -50,10 +50,12 @@ extern "C" std::string _armsx3_telemetryDrain()
             << ",\"result\":" << event.result << '}';
     }
     out << ']';
-    return out.str();
+    thread_local std::string serialized;
+    serialized = out.str();
+    return serialized.c_str();
 }
 
-extern "C" std::string _armsx3_telemetrySnapshot()
+extern "C" const char* _armsx3_telemetrySnapshot()
 {
     const u64 now = performance_telemetry::now_ns();
     const u64 process = telemetry_clock(CLOCK_PROCESS_CPUTIME_ID);
@@ -98,5 +100,7 @@ extern "C" std::string _armsx3_telemetrySnapshot()
         << ",\"native_log_path\":" << telemetry_quote(fs::get_log_dir() + "ARMSX3.log") << '}';
     telemetry_sample_ns = now;
     telemetry_process_ns = process;
-    return out.str();
+    thread_local std::string serialized;
+    serialized = out.str();
+    return serialized.c_str();
 }
