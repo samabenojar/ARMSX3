@@ -12,6 +12,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import com.armsx2.ui.settings.ToggleRow
+import com.armsx2.ui.xmb.LocalXmbCollector
+import com.armsx2.ui.xmb.XmbCollected
+import com.armsx2.ui.xmb.XmbNode
 
 @Composable
 fun TelemetrySettings() {
@@ -27,6 +30,16 @@ fun TelemetrySettings() {
                 PerformanceTelemetry.selectFolder(uri)
             }.onFailure { PerformanceTelemetry.reportSelectionError(it) }
         }
+    }
+    LocalXmbCollector.current?.let { collector ->
+        XmbCollected(collector, XmbNode.Action(
+            "telemetry.folder", "Performance logging folder", collector.icon, status,
+        ) { picker.launch(folder?.let(android.net.Uri::parse)) })
+        ToggleRow("Automatically record games", enabled,
+            description = "${status}\nGuest frames, CPU shares, pipeline timings and native logs.") {
+            PerformanceTelemetry.setEnabled(it)
+        }
+        return
     }
     Column {
         Text("Performance logging", style = MaterialTheme.typography.titleMedium)

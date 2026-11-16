@@ -234,6 +234,7 @@ android {
 // uncompressed: Play compresses every download itself, so there it would only grow the install.
 // Set per variant because a packaging block inside a flavor applies to both (see productFlavors).
 androidComponents {
+    beforeVariants { variant -> variant.enableUnitTest = true }
     onVariants { variant ->
         if (variant.flavorName == "github") {
             variant.packaging.dex.useLegacyPackaging.set(true)

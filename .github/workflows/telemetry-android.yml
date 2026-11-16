@@ -30,6 +30,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
@@ -92,6 +93,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
