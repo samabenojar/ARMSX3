@@ -208,17 +208,17 @@
             android:theme="@android:style/Theme.Translucent.NoTitleBar"
             android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|density|navigation">
             <intent-filter>
-                <action android:name="com.armsx3.action.INSTALL" />
+                <action android:name="${applicationId}.action.INSTALL" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
             <intent-filter>
-                <action android:name="com.armsx3.action.INSTALL" />
+                <action android:name="${applicationId}.action.INSTALL" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="content" />
                 <data android:scheme="file" />
             </intent-filter>
             <intent-filter>
-                <action android:name="com.armsx3.action.INSTALL" />
+                <action android:name="${applicationId}.action.INSTALL" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="*/*" />
             </intent-filter>

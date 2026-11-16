@@ -35,7 +35,9 @@ android {
         minSdk = (project.findProperty("armsx3.minSdk") as String?)?.toInt() ?: 33
         targetSdk = 37
         versionCode = 114
-        versionName = "1.6.7"
+        versionName = "1.6.7-telemetry.1"
+        val revision = providers.gradleProperty("telemetry.revision").orElse("local").get()
+        buildConfigField("String", "TELEMETRY_REVISION", "\"$revision\"")
 
         // ARMSX2's UI reads these. STORAGE_ALL_FILES gates the all-files storage path in
         // onboarding; IN_APP_UPDATER gates the in-app GitHub-release updater.
@@ -94,7 +96,8 @@ android {
 
         create("play") {
             dimension = "distribution"
-            applicationId = "com.armsx3.play"
+            applicationId = "com.armsx3.telemetry"
+            resValue("string", "app_name", "ARMSX3 Telemetry")
 
             buildConfigField("boolean", "STORAGE_ALL_FILES", "false")
             buildConfigField("boolean", "IN_APP_UPDATER", "false")
@@ -105,11 +108,11 @@ android {
             // no sign-in waiting, so the play copy never finished. It has to start with
             // "discord-": the SDK's AuthenticationActivity ignores any other callback scheme
             // (CALLBACK_SCHEME_PREFIX), so a scheme like com.armsx3.play would never complete.
-            // The redirect discord-1534624714989764829-play:/authorize/callback is registered for
+            // The redirect discord-armsx3-telemetry:/authorize/callback is registered for
             // the application in the Discord developer portal; without it Discord answers
             // "Invalid OAuth2 redirect_uri".
-            manifestPlaceholders["discordAuthScheme"] = "discord-1534624714989764829-play"
-            buildConfigField("String", "DISCORD_AUTH_SCHEME", "\"discord-1534624714989764829-play\"")
+            manifestPlaceholders["discordAuthScheme"] = "discord-armsx3-telemetry"
+            buildConfigField("String", "DISCORD_AUTH_SCHEME", "\"discord-armsx3-telemetry\"")
 
             // Frame generation is excluded by SOURCE SET, not by a packaging filter: a
             // packaging block inside a flavor is not honoured and silently applied to both,

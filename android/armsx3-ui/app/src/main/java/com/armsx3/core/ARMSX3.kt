@@ -78,6 +78,11 @@ enum class BootResult
 };
 
 class ARMSX3 {
+    /** Versioned native telemetry; call only from the recording IO worker. */
+    external fun telemetryConfigure(enabled: Boolean): Boolean
+    external fun telemetryDrain(): String
+    external fun telemetrySnapshot(): String
+
     external fun openLibrary(path: String): Boolean
 
     /** Extract the Lossless Scaling shaders from a real filesystem path. Returns how many were

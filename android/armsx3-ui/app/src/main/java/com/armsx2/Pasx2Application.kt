@@ -32,6 +32,7 @@ class Pasx2Application : Application(), ImageLoaderFactory {
 	override fun onCreate() {
 		super.onCreate()
 		appContext = applicationContext
+        com.armsx2.telemetry.PerformanceTelemetry.initialize(this)
 		installCrashLogging()
 	}
 

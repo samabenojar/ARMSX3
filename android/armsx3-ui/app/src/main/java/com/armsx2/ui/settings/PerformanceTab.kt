@@ -70,6 +70,8 @@ fun PerformanceTab(state: MutableState<Settings>) {
         modifier = Modifier
             .fillMaxWidth(),
     ) {
+        com.armsx2.telemetry.TelemetrySettings()
+        SettingsDivider()
         // Prominent latency preset: zero queued GS frames keeps the emulated CPU
         // from running ahead of presentation, and the Surface requests a matching
         // high-refresh display mode. Settings scope is supplied by InGameOverlay,

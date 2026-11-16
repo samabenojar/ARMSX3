@@ -1,4 +1,7 @@
 #include "stdafx.h"
+#ifdef ANDROID
+#include "util/performance_telemetry.hpp"
+#endif
 #include "VKProgramPipeline.h"
 #include "VKResourceManager.h"
 #include "vkutils/descriptors.h"
@@ -281,13 +284,27 @@ namespace vk
 			{
 				VkGraphicsPipelineCreateInfo create_info = *p_graphics_info;
 				create_info.layout = m_pipeline_layout;
-				CHECK_RESULT(vkCreateGraphicsPipelines(m_device, cache, 1, &create_info, nullptr, &m_pipeline));
+				#ifdef ANDROID
+                performance_telemetry::pipeline_scope telemetry(performance_telemetry::kind::graphics_pipeline);
+#endif
+                const auto pipeline_result = vkCreateGraphicsPipelines(m_device, cache, 1, &create_info, nullptr, &m_pipeline);
+#ifdef ANDROID
+                telemetry.finish(static_cast<std::int32_t>(pipeline_result));
+#endif
+                CHECK_RESULT(pipeline_result);
 			}
 			else
 			{
 				VkComputePipelineCreateInfo create_info = *p_compute_info;
 				create_info.layout = m_pipeline_layout;
-				CHECK_RESULT(vkCreateComputePipelines(m_device, cache, 1, &create_info, nullptr, &m_pipeline));
+				#ifdef ANDROID
+                performance_telemetry::pipeline_scope telemetry(performance_telemetry::kind::compute_pipeline);
+#endif
+                const auto pipeline_result = vkCreateComputePipelines(m_device, cache, 1, &create_info, nullptr, &m_pipeline);
+#ifdef ANDROID
+                telemetry.finish(static_cast<std::int32_t>(pipeline_result));
+#endif
+                CHECK_RESULT(pipeline_result);
 			}
 
 			m_linked = true;

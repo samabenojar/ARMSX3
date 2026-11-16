@@ -327,12 +327,14 @@ object Rpcs3Bridge {
         // now, and it is a preference read once staged.
         appContext?.let { com.armsx2.OverlayIcons.ensureBundled(it) }
 
+        com.armsx2.telemetry.PerformanceTelemetry.gameStarting()
         val result = ARMSX3.boot(target)
         // AlreadyAdded is not a failure: it says the title was already in games.yml, which is
         // the normal case for anything booted before. RPCS3's own front-end passes it through
         // for that reason. Treating it as an error turned a re-boot into "Game failed to
         // start: AlreadyAdded" and sent the user back to the library.
         if (result != BootResult.NoErrors && result != BootResult.AlreadyAdded) {
+            com.armsx2.telemetry.PerformanceTelemetry.gameEnded()
             lastBootError = result.name
             android.util.Log.e("ARMSX3", "boot failed: ${result.name} path=$target")
             return false
@@ -419,6 +421,7 @@ object Rpcs3Bridge {
                 }
             }
         } finally {
+            com.armsx2.telemetry.PerformanceTelemetry.gameEnded()
             // finally, not after the loop: the abnormal-teardown path above leaves via
             // stopRequested, and a pump left running would keep the motor buzzing on whatever
             // value the dead guest last wrote.

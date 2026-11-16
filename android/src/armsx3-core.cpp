@@ -1,3 +1,7 @@
+#include "util/performance_telemetry.hpp"
+#include <sstream>
+#include <unordered_map>
+#include <locale>
 #include <sys/prctl.h>
 #include <array>
 #include <charconv>
@@ -5350,7 +5354,7 @@ extern "C" void _armsx3_kill() {
   std::lock_guard vfs_lock(g_emu_lifecycle_mutex);
   stop_session();
 }
-extern "C" void _armsx3_resume() { Emu.Resume(); }
+extern "C" void _armsx3_resume() { performance_telemetry::discontinuity(); Emu.Resume(); }
 
 // From the activity's onStart/onStop. See Emu/android_app_state.h for who reads it.
 extern "C" void _armsx3_setAppBackgrounded(bool backgrounded) {
@@ -5435,6 +5439,7 @@ extern "C" int _armsx3_getPlayCompileState() {
 // The frame this captures is the game as it looked when paused, which is the right image for
 // a save made from that menu anyway.
 extern "C" void _armsx3_pause() {
+  performance_telemetry::discontinuity();
   // Capture BEFORE pausing, and finish the capture before the pause begins.
   //
   // The frame is wanted because a paused emulator never flips, so a save made from the pause
@@ -8789,3 +8794,5 @@ extern "C" void *_armsx3_setCustomDriver(void *driverHandle) {
 }
 
 #pragma GCC diagnostic pop
+
+#include "performance-telemetry.inc"

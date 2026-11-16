@@ -29,6 +29,9 @@
 #endif
 
 struct CoreApi {
+  void (*telemetryConfigure)(bool);
+  std::string (*telemetryDrain)();
+  std::string (*telemetrySnapshot)();
   bool (*overlayPadData)(int port, int digital1, int digital2, int leftStickX,
                          int leftStickY, int rightStickX, int rightStickY);
   bool (*overlayPadPressure)(int port, const int *values, int count);
@@ -263,6 +266,9 @@ struct CoreLibrary : CoreApi {
     result.openHomeMenu = reinterpret_cast<decltype(openHomeMenu)>(dlsym(handle, "_armsx3_openHomeMenu"));
     result.getTitleId = reinterpret_cast<decltype(getTitleId)>(dlsym(handle, "_armsx3_getTitleId"));
     result.getTitle = reinterpret_cast<decltype(getTitle)>(dlsym(handle, "_armsx3_getTitle"));
+    result.telemetryConfigure = reinterpret_cast<decltype(telemetryConfigure)>(dlsym(handle, "_armsx3_telemetryConfigure"));
+    result.telemetryDrain = reinterpret_cast<decltype(telemetryDrain)>(dlsym(handle, "_armsx3_telemetryDrain"));
+    result.telemetrySnapshot = reinterpret_cast<decltype(telemetrySnapshot)>(dlsym(handle, "_armsx3_telemetrySnapshot"));
     result.getFramePeriodNs = reinterpret_cast<decltype(getFramePeriodNs)>(dlsym(handle, "_armsx3_getFramePeriodNs"));
     result.getFrameWorkNs = reinterpret_cast<decltype(getFrameWorkNs)>(dlsym(handle, "_armsx3_getFrameWorkNs"));
     result.getRsxThreadTid = reinterpret_cast<decltype(getRsxThreadTid)>(dlsym(handle, "_armsx3_getRsxThreadTid"));
@@ -2331,4 +2337,19 @@ Java_com_armsx3_core_ARMSX3_rpcnDeleteTrophies(JNIEnv *env, jobject) {
   if (!coreLib.rpcnDeleteTrophies) return rpcn_unavailable(env);
   const char *msg = coreLib.rpcnDeleteTrophies();
   return env->NewStringUTF(msg ? msg : "");
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_armsx3_core_ARMSX3_telemetryConfigure(JNIEnv *, jobject, jboolean enabled) {
+  if (!coreLib.telemetryConfigure || !coreLib.telemetryDrain || !coreLib.telemetrySnapshot) return false;
+  coreLib.telemetryConfigure(enabled);
+  return true;
+}
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_armsx3_core_ARMSX3_telemetryDrain(JNIEnv *env, jobject) {
+  return wrap(env, coreLib.telemetryDrain ? coreLib.telemetryDrain() : std::string("[]"));
+}
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_armsx3_core_ARMSX3_telemetrySnapshot(JNIEnv *env, jobject) {
+  return wrap(env, coreLib.telemetrySnapshot ? coreLib.telemetrySnapshot() : std::string("{}"));
 }

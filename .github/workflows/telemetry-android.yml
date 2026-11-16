@@ -1,0 +1,144 @@
+name: Telemetry Android
+
+on:
+  push:
+    branches: [telemetry]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: telemetry-android-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  android:
+    name: Telemetry APK and native checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      NDK_VERSION: 29.0.14206865
+      CMAKE_VERSION: 3.30.5
+      ANDROID_API: 33
+      ARM_MARCH: armv8.2-a+dotprod+fp16
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 4G
+      CCACHE_SLOPPINESS: include_file_mtime,include_file_ctime,time_macros
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+      CMAKE_BUILD_PARALLEL_LEVEL: 2
+    steps:
+      - name: Free runner space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/boost /opt/hostedtoolcache/CodeQL
+          df -h .
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - name: Native queue tests
+        run: |
+          c++ -std=c++20 -pthread -I. tests/telemetry/queue_test.cpp -o /tmp/telemetry-queue-test
+          /tmp/telemetry-queue-test
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install build tools
+        run: |
+          sdkmanager "ndk;${NDK_VERSION}" "cmake;${CMAKE_VERSION}" "platforms;android-37" "build-tools;37.0.0"
+          sudo apt-get update -qq
+          sudo apt-get install -y ccache
+      - uses: actions/cache@v4
+        with:
+          path: build-ffmpeg
+          key: telemetry-ffmpeg-${{ hashFiles('android/build-ffmpeg.sh', 'android/ffmpeg.cmake') }}
+      - uses: actions/cache/restore@v4
+        id: ccache
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: telemetry-native-${{ github.run_id }}
+          restore-keys: telemetry-native-
+      - name: Fetch omitted native dependencies
+        run: |
+          pin="$(sed -n 's/^PIN=//p' ios/scripts/build-librashader-ios.sh)"
+          git init -q 3rdparty/librashader
+          git -C 3rdparty/librashader fetch -q --depth 1 https://github.com/SnowflakePowered/librashader.git "$pin"
+          git -C 3rdparty/librashader checkout -q FETCH_HEAD
+          dir=android/armsx3-ui/app/src/main/cpp/libadrenotools
+          git init -q "$dir"
+          git -C "$dir" fetch -q --depth 1 https://github.com/bylaws/libadrenotools.git 8fae8ce254dfc1344527e05301e43f37dea2df80
+          git -C "$dir" checkout -q FETCH_HEAD
+          git -C "$dir" submodule update -q --init --depth 1
+      - name: Configure dedicated signing
+        env:
+          KEYSTORE_B64: ${{ secrets.TELEMETRY_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.TELEMETRY_KEYSTORE_PASSWORD }}
+        run: |
+          python3 - <<'PY'
+          import os,base64,pathlib
+          root=pathlib.Path('android/armsx3-ui')
+          if not os.environ.get('KEYSTORE_B64') or not os.environ.get('KEYSTORE_PASSWORD'):
+              raise SystemExit('Dedicated telemetry signing secrets are required')
+          key=root/'telemetry.p12'
+          key.write_bytes(base64.b64decode(os.environ['KEYSTORE_B64']))
+          key.chmod(0o600)
+          password=os.environ['KEYSTORE_PASSWORD']
+          (root/'keystore.properties').write_text(f'storeFile={key.resolve()}\nstorePassword={password}\nkeyAlias=telemetry\nkeyPassword={password}\n')
+          PY
+      - name: Compile Kotlin and run unit tests
+        working-directory: android/armsx3-ui
+        run: ./gradlew :app:compilePlayReleaseKotlin :app:testPlayReleaseUnitTest -Parmsx3.minSdk=$ANDROID_API -Ptelemetry.revision=$GITHUB_SHA -Dorg.gradle.jvmargs="-Xmx4g -Dfile.encoding=UTF-8" --stacktrace
+      - name: Configure native core
+        run: bash android/stamp-git-version.sh && bash android/configure.sh -DARMSX3_ARM_MARCH=$ARM_MARCH
+      - name: Build native core
+        run: |
+          export PATH="$ANDROID_HOME/cmake/$CMAKE_VERSION/bin:$PATH"
+          ninja -C build-android -j2 android/libarmsx3-core.so
+      - name: Save native cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ${{ steps.ccache.outputs.cache-primary-key }}
+      - name: Stage native library
+        run: |
+          mkdir -p android/armsx3-ui/app/src/main/jniLibs/arm64-v8a
+          "$ANDROID_HOME/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" --strip-unneeded \
+            -o android/armsx3-ui/app/src/main/jniLibs/arm64-v8a/libarmsx3-core.so build-android/android/libarmsx3-core.so
+          tar -czf telemetry-native-symbols.tar.gz -C build-android/android libarmsx3-core.so
+      - name: Build signed telemetry APK
+        working-directory: android/armsx3-ui
+        env:
+          CFLAGS: -w
+          CXXFLAGS: -w
+        run: ./gradlew :app:assemblePlayRelease -Parmsx3.minSdk=$ANDROID_API -Parmsx3.uploadSigning -Ptelemetry.revision=$GITHUB_SHA -Dorg.gradle.jvmargs="-Xmx4g -Dfile.encoding=UTF-8" --stacktrace
+      - name: Check APK identity
+        run: |
+          apk=$(find android/armsx3-ui/app/build/outputs/apk/play/release -name '*.apk' -print -quit)
+          "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest application-id "$apk" | grep -Fx com.armsx3.telemetry
+      - uses: actions/upload-artifact@v4
+        with:
+          name: armsx3-telemetry-apk
+          path: android/armsx3-ui/app/build/outputs/apk/play/release/*.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: armsx3-telemetry-symbols
+          path: telemetry-native-symbols.tar.gz
+          if-no-files-found: error
+      - name: Upload unit-test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: telemetry-unit-tests
+          path: android/armsx3-ui/app/build/test-results/
+          if-no-files-found: ignore

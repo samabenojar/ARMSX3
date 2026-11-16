@@ -1,4 +1,7 @@
 #include "stdafx.h"
+#ifdef ANDROID
+#include "util/performance_telemetry.hpp"
+#endif
 #include "RSXThread.h"
 #include "Emu/android_app_state.h"
 
@@ -2297,6 +2300,9 @@ namespace rsx
 
 	void thread::on_frame_end(context* ctx, u32 buffer, bool forced)
 	{
+#ifdef ANDROID
+		if (!forced) performance_telemetry::frame();
+#endif
 		prof::set_enabled(g_cfg.video.rsx_profiler.get());
 		prof::tick_frame();
 
