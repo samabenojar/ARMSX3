@@ -2559,9 +2559,9 @@ static void setupCallbacks() {
             g_mainThreadDispatcher.post(std::move(cb));
           },
       .on_run = [](auto...) { remote_play_on_run(); },
-      .on_pause = [](auto...) {},
-      .on_resume = [](auto...) {},
-      .on_stop = [](auto...) {},
+      .on_pause = [](auto...) { performance_telemetry::discontinuity(); },
+      .on_resume = [](auto...) { performance_telemetry::discontinuity(); },
+      .on_stop = [](auto...) { performance_telemetry::discontinuity(); },
       .on_ready = [](auto...) {},
       .on_missing_fw = [](auto...) {},
       // RPCS3's stop watchdog calls this when shutting the VM down has taken about 10

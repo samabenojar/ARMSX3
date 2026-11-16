@@ -156,11 +156,13 @@ private class RecordingSession(private val context: Context, private val root: D
     private var nativeLogPath = ""
     private var nativeLogUnavailable = false
     private var lastLoggedDropped = 0L
+    private var nextBudgetCheckNs = 0L
     private val hardware = HardwareSamples()
     var framesRecorded = 0L; private set
     var droppedEvents = 0L; private set
 
     init {
+      try {
         // UTC and monotonic time are recorded together, not inferred from filenames.
         val metadata = JSONObject().put("schema_version", 1).put("recorder", TelemetryFiles.RECORDER)
             .put("started_utc", Instant.now().toString()).put("monotonic_ns", System.nanoTime())
@@ -182,6 +184,10 @@ private class RecordingSession(private val context: Context, private val root: D
         event("session_started")
         captureSettings()
         flush()
+      } catch (error: Exception) {
+        files.forEach { runCatching { it.close() } }
+        throw error
+      }
     }
 
     fun event(kind: String, detail: JSONObject = JSONObject()) {
@@ -205,8 +211,13 @@ private class RecordingSession(private val context: Context, private val root: D
     }
 
     fun sample(running: Boolean) {
-        // Reserve room before writing a bounded drain plus up to 1 MB of log data.
-        TelemetryFiles.makeRoom(context, root, directory.uri, 2L * 1024 * 1024)
+        // SAF directory scans are Binder calls. Check every five seconds, reserving
+        // enough for bounded drains and at most 1 MB/second of native logs.
+        if (System.nanoTime() >= nextBudgetCheckNs) {
+            check(root.exists() && root.canWrite()) { "Recording folder access was lost" }
+            TelemetryFiles.makeRoom(context, root, directory.uri, 16L * 1024 * 1024)
+            nextBudgetCheckNs = System.nanoTime() + 5_000_000_000L
+        }
         val snapshot = JSONObject(ARMSX3.instance.telemetrySnapshot())
         check(snapshot.optInt("version") == 1) { "Unsupported native telemetry schema" }
         val native = JSONArray(ARMSX3.instance.telemetryDrain())
@@ -280,7 +291,7 @@ private class RecordingSession(private val context: Context, private val root: D
                 .put("ended_utc", Instant.now().toString()).put("reason", reason)
                 .put("frames", framesRecorded).put("dropped_events", droppedEvents))
         } finally {
-            nativeLog?.close()
+            runCatching { nativeLog?.close() }
             files.forEach { runCatching { it.close() } }
         }
     }
@@ -298,11 +309,11 @@ private class RecordingSession(private val context: Context, private val root: D
 private class HardwareSamples {
     private fun text(file: File): String? = runCatching { file.readText().trim() }.getOrNull()
     private fun number(file: File, divisor: Double): Double? = text(file)?.toDoubleOrNull()?.div(divisor)
-    private val cpu = File("/sys/devices/system/cpu").listFiles().orEmpty()
+    private val cpu = runCatching { File("/sys/devices/system/cpu").listFiles() }.getOrNull().orEmpty()
         .filter { it.name.matches(Regex("cpu[0-9]+")) }
         .sortedBy { it.name.removePrefix("cpu").toInt() }
         .associate { it.name to File(it, "cpufreq/scaling_cur_freq") }
-    private val temperatures = File("/sys/class/thermal").listFiles().orEmpty()
+    private val temperatures = runCatching { File("/sys/class/thermal").listFiles() }.getOrNull().orEmpty()
         .filter { it.name.startsWith("thermal_zone") }.mapNotNull { zone ->
             val type = text(File(zone, "type")) ?: return@mapNotNull null
             if (listOf("cpu", "gpu", "battery", "skin").none { type.contains(it, true) }) return@mapNotNull null

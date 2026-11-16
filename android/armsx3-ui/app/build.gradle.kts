@@ -25,7 +25,7 @@ plugins {
 
 android {
     namespace = "com.armsx2"
-    compileSdk = 37
+    compileSdk { version = release(37) { minorApiLevel = 0 } }
 
     defaultConfig {
         applicationId = "com.armsx3"
